@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receipt — Purchase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="home.html" class="site-title">Purchase<span>.</span></a>
+      <nav>
+        <a href="home.html">Home</a>
+        <a href="products.html">Products</a>
+        <a href="cart.html" class="cart-link">Cart <span id="cart-count" class="cart-count" style="display: none;">0</span></a>
+        <a href="dashboard.html" id="nav-dashboard" style="display: none; color: var(--accent);">Dashboard</a>
+        <button type="button" class="logout-btn" id="logout">Log out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="receipt-top">
+      <h1 class="page-title" style="margin: 1.5rem 0 0.75rem;">Receipt</h1>
+      <button type="button" class="btn btn-secondary btn-sm receipt-print" id="print-btn">Print</button>
+    </div>
+
+    <div class="card receipt-card" id="receipt-card">
+      <div id="receipt-loading" class="text-muted">Loading receipt…</div>
+      <div id="receipt-error" class="form-error" style="display:none;"></div>
+
+      <div id="receipt-body" style="display:none;">
+        <div class="receipt-meta">
+          <div>
+            <div class="text-muted">Order</div>
+            <div class="receipt-strong">#<span id="order-id"></span></div>
+          </div>
+          <div>
+            <div class="text-muted">Date</div>
+            <div class="receipt-strong" id="order-date"></div>
+          </div>
+          <div>
+            <div class="text-muted">Ship to</div>
+            <div class="receipt-strong" id="ship-name"></div>
+            <div class="text-muted" id="ship-address"></div>
+          </div>
+        </div>
+
+        <div class="receipt-divider"></div>
+
+        <h2 style="font-size: 1.1rem; margin-bottom: 0.5rem;">Items</h2>
+        <div class="receipt-items" id="receipt-items"></div>
+
+        <div class="receipt-divider"></div>
+
+        <div class="receipt-total">
+          <div class="text-muted">Total paid</div>
+          <div class="receipt-grand" id="order-total">$0.00</div>
+        </div>
+
+        <div class="receipt-actions">
+          <a href="products.html" class="btn btn-primary" style="width:auto;">Buy more</a>
+          <a href="home.html" class="btn btn-secondary" style="width:auto;">Back to home</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    (async function() {
+      initProtectedPage();
+      document.getElementById('logout').addEventListener('click', function() {
+        clearAuth();
+        setCart([]);
+        window.location.href = 'index.html';
+      });
+      document.getElementById('print-btn').addEventListener('click', function() {
+        window.print();
+      });
+      try {
+        const me = await apiRequest('/api/me');
+        if (me.user && me.user.is_owner) document.getElementById('nav-dashboard').style.display = 'inline';
+      } catch (e) {}
+
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get('order_id') || sessionStorage.getItem('purchase_last_order_id');
+      const loading = document.getElementById('receipt-loading');
+      const errorEl = document.getElementById('receipt-error');
+      const body = document.getElementById('receipt-body');
+
+      if (!orderId) {
+        loading.style.display = 'none';
+        errorEl.style.display = 'block';
+        errorEl.textContent = 'No order selected. Place an order first.';
+        return;
+      }
+
+      try {
+        const data = await fetchOrder(orderId);
+        const order = data.order;
+        const items = data.items || [];
+
+        document.getElementById('order-id').textContent = order.id;
+        document.getElementById('order-date').textContent = order.created_at || '';
+        document.getElementById('ship-name').textContent = order.shipping_name || '';
+        document.getElementById('ship-address').textContent = order.shipping_address || '';
+        document.getElementById('order-total').textContent = formatPrice(order.total || 0);
+
+        const itemsWrap = document.getElementById('receipt-items');
+        itemsWrap.innerHTML = items.map(function(i) {
+          const line = (i.price || 0) * (i.quantity || 1);
+          return '<div class=\"receipt-item\">' +
+            '<div>' +
+              '<div class=\"receipt-strong\">' + escapeHtml(i.name || '') + '</div>' +
+              '<div class=\"text-muted\">' + formatPrice(i.price || 0) + ' × ' + (i.quantity || 1) + '</div>' +
+            '</div>' +
+            '<div class=\"receipt-line-total\">' + formatPrice(line) + '</div>' +
+          '</div>';
+        }).join('');
+
+        loading.style.display = 'none';
+        body.style.display = 'block';
+      } catch (err) {
+        loading.style.display = 'none';
+        errorEl.style.display = 'block';
+        errorEl.textContent = err.message || 'Could not load receipt.';
+      }
+    })();
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,14 @@
+# Database (deploy will create a new one)
+purchase.db
+
+# Python
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db

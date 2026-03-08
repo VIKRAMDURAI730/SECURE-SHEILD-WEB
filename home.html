@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home — Purchase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="home.html" class="site-title">Purchase<span>.</span></a>
+      <nav>
+        <a href="home.html">Home</a>
+        <a href="products.html">Products</a>
+        <a href="cart.html" class="cart-link">Cart <span id="cart-count" class="cart-count" style="display: none;">0</span></a>
+        <a href="dashboard.html" id="nav-dashboard" style="display: none; color: var(--accent);">Dashboard</a>
+        <button type="button" class="logout-btn" id="logout">Log out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="home-hero card">
+      <div>
+        <h1 id="welcome-title" class="page-title" style="margin: 0 0 0.25rem;">Welcome</h1>
+        <p class="text-muted">Shop products, review your cart, and place orders.</p>
+        <div class="home-actions">
+          <a class="btn btn-secondary" href="products.html">Browse products</a>
+          <a class="btn btn-primary" href="cart.html" style="width: auto;">Go to cart</a>
+        </div>
+      </div>
+      <div class="home-stats">
+        <div class="stat">
+          <div class="stat-label">Cart items</div>
+          <div class="stat-value" id="stat-cart-items">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Cart total</div>
+          <div class="stat-value" id="stat-cart-total">$0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 1.5rem;">
+      <h2 style="font-size: 1.2rem; margin-bottom: 0.75rem;">Recent orders</h2>
+      <div id="recent-orders" class="text-muted">Loading…</div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    (async function() {
+      const user = initProtectedPage();
+      if (!user) return;
+
+      document.getElementById('welcome-title').textContent = 'Welcome, ' + (user.name || user.email || 'shopper');
+
+      document.getElementById('logout').addEventListener('click', function() {
+        clearAuth();
+        setCart([]);
+        window.location.href = 'index.html';
+      });
+
+      const cart = getCart();
+      const cartItems = cart.reduce((n, i) => n + (i.quantity || 1), 0);
+      document.getElementById('stat-cart-items').textContent = String(cartItems);
+      document.getElementById('stat-cart-total').textContent = formatPrice(getCartTotal());
+
+      // Show dashboard link for owner
+      try {
+        const me = await apiRequest('/api/me');
+        if (me.user && me.user.is_owner) {
+          document.getElementById('nav-dashboard').style.display = 'inline';
+        }
+      } catch (e) {}
+
+      const recentEl = document.getElementById('recent-orders');
+      try {
+        const orders = await apiRequest('/api/orders/recent');
+        if (!orders.length) {
+          recentEl.textContent = 'No orders yet. Place your first order from the cart.';
+          return;
+        }
+        recentEl.innerHTML =
+          '<ul class=\"recent-orders\">' +
+            orders.map(function(o) {
+              return '<li>' +
+                '<span>Order #' + o.id + ' • ' + (o.created_at || '') + '</span>' +
+                '<span style=\"font-weight:700; color: var(--accent);\">' + formatPrice(o.total) + '</span>' +
+              '</li>';
+            }).join('') +
+          '</ul>';
+      } catch (err) {
+        recentEl.innerHTML = '<span class=\"form-error\">Could not load recent orders.</span>';
+      }
+    })();
+  </script>
+</body>
+</html>
+

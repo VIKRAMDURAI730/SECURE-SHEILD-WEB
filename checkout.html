@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout — Purchase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="products.html" class="site-title">Purchase<span>.</span></a>
+      <nav>
+        <a href="home.html">Home</a>
+        <a href="products.html">Products</a>
+        <a href="cart.html" class="cart-link">Cart <span id="cart-count" class="cart-count" style="display: none;"></span></a>
+        <a href="dashboard.html" id="nav-dashboard" style="display: none; color: var(--accent);">Dashboard</a>
+        <button type="button" class="logout-btn" id="logout">Log out</button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <h1 class="page-title">Checkout</h1>
+    <div id="checkout-form-wrap">
+      <div class="order-summary">
+        <h3>Order summary</h3>
+        <ul id="order-items"></ul>
+        <div class="grand-total">Total: <span id="order-total">$0.00</span></div>
+      </div>
+      <form id="checkout-form" class="card checkout-form">
+        <section>
+          <h3>Shipping address</h3>
+          <label for="name">Full name</label>
+          <input type="text" id="name" name="name" required placeholder="Your name">
+          <label for="address">Address</label>
+          <input type="text" id="address" name="address" required placeholder="Street, city, ZIP">
+        </section>
+        <section>
+          <h3>Payment</h3>
+          <label for="card">Card number</label>
+          <input type="text" id="card" name="card" placeholder="4242 4242 4242 4242" maxlength="19">
+          <label for="expiry">Expiry</label>
+          <input type="text" id="expiry" name="expiry" placeholder="MM/YY" maxlength="5">
+          <label for="cvc">CVC</label>
+          <input type="text" id="cvc" name="cvc" placeholder="123" maxlength="4">
+        </section>
+        <div id="checkout-message" class="form-error" style="display: none;"></div>
+        <button type="submit" class="btn btn-primary">Place order</button>
+      </form>
+    </div>
+    <div id="success-block" class="card success-message" style="display: none;">
+      <h2>Order placed successfully</h2>
+      <p>Thank you for your purchase. Your order has been confirmed.</p>
+      <a href="products.html" class="btn btn-primary" style="display: inline-block; width: auto;">Continue shopping</a>
+    </div>
+  </main>
+  <script src="js/app.js"></script>
+  <script>
+    (function() {
+      initProtectedPage();
+      document.getElementById('logout').addEventListener('click', function() {
+        clearAuth();
+        setCart([]);
+        window.location.href = 'index.html';
+      });
+      (async function() {
+        try {
+          const me = await apiRequest('/api/me');
+          if (me.user && me.user.is_owner) document.getElementById('nav-dashboard').style.display = 'inline';
+        } catch (e) {}
+      })();
+
+      const cart = getCart();
+      if (!cart.length) {
+        window.location.href = 'cart.html';
+        return;
+      }
+
+      const list = document.getElementById('order-items');
+      list.innerHTML = cart.map(function(i) {
+        const subtotal = i.price * (i.quantity || 1);
+        return '<li><span>' + escapeHtml(i.name || '') + ' × ' + (i.quantity || 1) + '</span><span>' + formatPrice(subtotal) + '</span></li>';
+      }).join('');
+      document.getElementById('order-total').textContent = formatPrice(getCartTotal());
+
+      document.getElementById('checkout-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var name = document.getElementById('name').value.trim();
+        var address = document.getElementById('address').value.trim();
+        var msg = document.getElementById('checkout-message');
+        if (!name || !address) {
+          msg.style.display = 'block';
+          msg.textContent = 'Please fill in name and address.';
+          return;
+        }
+        msg.style.display = 'none';
+        var btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = 'Placing order…';
+        try {
+          const placed = await placeOrder(cart, name, address);
+          setCart([]);
+          updateCartCount();
+          const orderId = placed && placed.order_id ? placed.order_id : null;
+          if (orderId) {
+            sessionStorage.setItem('purchase_last_order_id', String(orderId));
+            window.location.href = 'receipt.html?order_id=' + encodeURIComponent(orderId);
+            return;
+          }
+          document.getElementById('checkout-form-wrap').style.display = 'none';
+          document.getElementById('success-block').style.display = 'block';
+        } catch (err) {
+          msg.style.display = 'block';
+          msg.textContent = err.message || 'Failed to place order.';
+          btn.disabled = false;
+          btn.textContent = 'Place order';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

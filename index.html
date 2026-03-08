@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Purchase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-page">
+  <div class="container">
+    <div class="card panel">
+      <h1>Welcome back</h1>
+      <p>Sign in to browse and purchase products.</p>
+      <form id="login-form">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+        <label for="password">Password</label>
+        <div class="password-wrap">
+          <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+          <button type="button" class="toggle-password" data-target="password" aria-label="Show password" title="Show password"></button>
+        </div>
+        <div id="form-message" class="form-error" style="display: none;"></div>
+        <button type="submit" class="btn btn-primary">Sign in</button>
+      </form>
+
+      <details style="margin-top: 1rem;">
+        <summary class="text-muted" style="cursor: pointer; font-size: 0.9rem;">Security — Known &amp; Unknown Attacks (College Project)</summary>
+        <div class="text-muted" style="margin-top: 0.75rem; font-size: 0.9rem;">
+          <p style="margin-bottom: 0.5rem;"><strong>Example model</strong> for college project. See <code>SECURITY.md</code> for full docs.</p>
+          <details style="margin-top: 0.5rem;"><summary><strong>SQL Injection</strong> — blocked</summary>
+          <p style="margin: 0.4rem 0 0 1rem;">
+            <strong>SQL injection</strong> happens when an app builds SQL queries by <strong>concatenating user input</strong> into the query string.
+            An attacker can then craft input that changes the meaning of the SQL (for example, turning a login check into “always true”).
+          </p>
+          </details>
+          <details style="margin-top: 0.3rem;">
+            <summary><strong>XSS</strong> — blocked</summary>
+            <p style="margin: 0.4rem 0 0 1rem;">Injecting scripts via user input can steal data. We use <code>textContent</code> and <code>escapeHtml()</code> so output is safe.</p>
+          </details>
+          <details style="margin-top: 0.3rem;">
+            <summary><strong>CSRF</strong> — mitigated</summary>
+            <p style="margin: 0.4rem 0 0 1rem;">Bearer tokens in headers (not cookies) prevent cross-site request forgery.</p>
+          </details>
+          <details style="margin-top: 0.3rem;">
+            <summary><strong>Unknown attacks</strong> — defense in depth</summary>
+            <p style="margin: 0.4rem 0 0 1rem;">Multiple layers (validation, encoding, secure auth) make new attack vectors harder to exploit.</p>
+          </details>
+          <p style="margin: 0.5rem 0 0;">Passwords: <strong>secure hash</strong> (Werkzeug), not plain text.</p>
+        </div>
+      </details>
+
+      <div style="margin-top: 0.75rem;">
+        <button type="button" class="btn btn-secondary btn-sm" id="test-sqli">Try SQL injection test (blocked)</button>
+        <div id="sqli-result" class="text-muted" style="margin-top: 0.5rem; font-size: 0.85rem; display: none;"></div>
+      </div>
+
+      <p class="text-muted mt-1" style="font-size: 0.85rem;">No account? <a href="#" id="show-register">Create one</a></p>
+      <div id="register-section" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+        <h2 style="font-size: 1.2rem; margin-bottom: 0.5rem;">Create account</h2>
+        <form id="register-form">
+          <label for="reg-email">Email</label>
+          <input type="email" id="reg-email" placeholder="you@example.com">
+          <label for="reg-password">Password (4+ characters)</label>
+          <div class="password-wrap">
+            <input type="password" id="reg-password" placeholder="••••••••">
+            <button type="button" class="toggle-password" data-target="reg-password" aria-label="Show password" title="Show password"></button>
+          </div>
+          <label for="reg-name">Name (optional)</label>
+          <input type="text" id="reg-name" placeholder="Your name">
+          <div id="reg-message" class="form-error" style="display: none;"></div>
+          <button type="submit" class="btn btn-primary">Register</button>
+        </form>
+        <p class="text-muted mt-1" style="font-size: 0.85rem;"><a href="#" id="show-login">Back to login</a></p>
+      </div>
+    </div>
+  </div>
+  <script src="js/app.js"></script>
+  <script>
+    (function() {
+      if (getAuth()) {
+        window.location.href = 'home.html';
+        return;
+      }
+      document.getElementById('show-register').addEventListener('click', function(e) {
+        e.preventDefault();
+        document.getElementById('login-form').closest('.card').querySelector('h1').textContent = 'Create account';
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('show-register').closest('p').style.display = 'none';
+        document.getElementById('register-section').style.display = 'block';
+      });
+      document.getElementById('show-login').addEventListener('click', function(e) {
+        e.preventDefault();
+        document.getElementById('login-form').closest('.card').querySelector('h1').textContent = 'Welcome back';
+        document.getElementById('login-form').style.display = 'block';
+        document.getElementById('show-register').closest('p').style.display = 'block';
+        document.getElementById('register-section').style.display = 'none';
+      });
+      document.getElementById('login-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const msgEl = document.getElementById('form-message');
+        msgEl.style.display = 'block';
+        msgEl.className = 'form-success';
+        msgEl.textContent = 'Signing in…';
+        const result = await login(document.getElementById('email').value, document.getElementById('password').value);
+        msgEl.className = result.ok ? 'form-success' : 'form-error';
+        msgEl.textContent = result.ok ? 'Redirecting…' : result.message;
+        if (result.ok) window.location.href = 'home.html';
+        else if (result.message && result.message.includes('No account')) {
+          msgEl.innerHTML = result.message + ' <a href="#" id="go-register">Create one</a>';
+          document.getElementById('go-register').addEventListener('click', function(ev) { ev.preventDefault(); document.getElementById('show-register').click(); });
+        }
+      });
+      document.getElementById('register-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const msgEl = document.getElementById('reg-message');
+        msgEl.style.display = 'block';
+        msgEl.className = 'form-success';
+        msgEl.textContent = 'Creating account…';
+        const result = await register(
+          document.getElementById('reg-email').value,
+          document.getElementById('reg-password').value,
+          document.getElementById('reg-name').value
+        );
+        msgEl.className = result.ok ? 'form-success' : 'form-error';
+        msgEl.textContent = result.ok ? 'Redirecting…' : result.message;
+        if (result.ok) window.location.href = 'home.html';
+      });
+
+      // Show/Hide password toggles
+      function togglePassword(btn) {
+        const id = btn.getAttribute('data-target');
+        const input = document.getElementById(id);
+        if (!input) return;
+        const isPassword = input.getAttribute('type') === 'password';
+        input.setAttribute('type', isPassword ? 'text' : 'password');
+        btn.classList.toggle('is-visible', isPassword);
+        const nextLabel = (isPassword ? 'Hide' : 'Show') + ' password';
+        btn.setAttribute('aria-label', nextLabel);
+        btn.setAttribute('title', nextLabel);
+      }
+      document.querySelectorAll('.toggle-password').forEach(function(btn) {
+        btn.addEventListener('click', function() { togglePassword(btn); });
+      });
+
+      // Action demo: attempt a common SQL injection payload against /api/login.
+      // Because the backend uses parameterized queries, this will not bypass login.
+      document.getElementById('test-sqli').addEventListener('click', async function() {
+        const payload = "' OR 1=1 --";
+        document.getElementById('email').value = payload + '@example.com';
+        document.getElementById('password').value = 'anything';
+
+        const out = document.getElementById('sqli-result');
+        out.style.display = 'block';
+        out.className = 'text-muted';
+        out.textContent = 'Testing injection payload…';
+
+        const result = await login(document.getElementById('email').value, document.getElementById('password').value);
+        if (result.ok) {
+          out.className = 'form-error';
+          out.textContent = 'Unexpected: login succeeded (this should not happen).';
+        } else {
+          out.className = 'form-success';
+          out.textContent = 'Blocked: injection did not bypass login. Server response: ' + result.message;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

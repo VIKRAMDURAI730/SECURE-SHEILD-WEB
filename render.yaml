@@ -1,0 +1,8 @@
+# Render Blueprint - deploy this repo to get a permanent public URL
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: purchase
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT

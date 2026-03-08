@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Dashboard — Owner</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .dashboard-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+    .dashboard-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.5rem; min-width: 140px; }
+    .stat-card .label { font-size: 0.85rem; color: var(--text-muted); }
+    .stat-card .value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .events-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .events-table th, .events-table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .events-table th { color: var(--text-muted); font-weight: 600; }
+    .events-table tr:hover { background: var(--surface-hover); }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+    .badge-fixed { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .badge-blocked { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+    .badge-sqli { background: rgba(245, 158, 11, 0.2); color: var(--accent); }
+    .badge-xss { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+    .event-message { color: var(--text); max-width: 280px; }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="home.html" class="site-title">Purchase<span>.</span></a>
+      <nav>
+        <a href="home.html">Home</a>
+        <a href="products.html">Products</a>
+        <a href="cart.html" class="cart-link">Cart <span id="cart-count" class="cart-count" style="display: none;">0</span></a>
+        <a href="dashboard.html" style="color: var(--accent);">Dashboard</a>
+        <button type="button" class="logout-btn" id="logout">Log out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="dashboard-header">
+      <h1 class="page-title" style="margin: 0;">Security Dashboard</h1>
+      <p class="text-muted" style="margin: 0;">Owner view — All attacks are auto-fixed. Clear status for each event.</p>
+    </div>
+
+    <div class="dashboard-stats" id="dashboard-stats">
+      <div class="stat-card">
+        <div class="label">Total events</div>
+        <div class="value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Fixed / Blocked</div>
+        <div class="value" id="stat-fixed" style="color: var(--success);">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">SQL injection</div>
+        <div class="value" id="stat-sqli">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">XSS attempts</div>
+        <div class="value" id="stat-xss">0</div>
+      </div>
+    </div>
+
+    <div class="card" style="overflow-x: auto;">
+      <h2 style="font-size: 1.1rem; margin-bottom: 1rem;">Security Events</h2>
+      <div id="events-loading" class="text-muted">Loading…</div>
+      <div id="events-error" class="form-error" style="display: none;"></div>
+      <table class="events-table" id="events-table" style="display: none;">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Attack type</th>
+            <th>Attacker / Email</th>
+            <th>IP address</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="events-body"></tbody>
+      </table>
+      <div id="events-empty" class="empty-state" style="display: none;">
+        No security events yet. Attacks will appear here when detected and auto-fixed.
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    (async function() {
+      const user = initProtectedPage();
+      if (!user) return;
+
+      document.getElementById('logout').addEventListener('click', function() {
+        clearAuth();
+        setCart([]);
+        window.location.href = 'index.html';
+      });
+
+      // Check owner access
+      let isOwner = false;
+      try {
+        const me = await apiRequest('/api/me');
+        isOwner = me.user && me.user.is_owner;
+      } catch (e) {
+        isOwner = false;
+      }
+      if (!isOwner) {
+        document.querySelector('main').innerHTML =
+          '<div class="card"><p class="form-error">Access denied. This dashboard is for the site owner only.</p><a href="home.html" class="btn btn-secondary">Back to home</a></div>';
+        return;
+      }
+
+      const loading = document.getElementById('events-loading');
+      const errorEl = document.getElementById('events-error');
+      const table = document.getElementById('events-table');
+      const tbody = document.getElementById('events-body');
+      const empty = document.getElementById('events-empty');
+
+      try {
+        const data = await apiRequest('/api/security/events');
+        loading.style.display = 'none';
+
+        const events = data.events || [];
+        if (events.length === 0) {
+          empty.style.display = 'block';
+        } else {
+          table.style.display = 'table';
+          let fixedCount = 0, sqliCount = 0, xssCount = 0;
+          tbody.innerHTML = events.map(function(e) {
+            if (e.fixed) fixedCount++;
+            if (e.event_type === 'sql_injection') sqliCount++;
+            if (e.event_type === 'xss_attempt') xssCount++;
+            const typeClass = e.event_type === 'sql_injection' ? 'badge-sqli' : (e.event_type === 'xss_attempt' ? 'badge-xss' : '');
+            const statusClass = e.fixed ? 'badge-fixed' : 'badge-blocked';
+            const statusText = e.fixed ? 'Fixed' : 'Blocked';
+            return '<tr>' +
+              '<td>' + (e.created_at || '') + '</td>' +
+              '<td><span class="badge ' + typeClass + '">' + escapeHtml(e.event_type || '') + '</span></td>' +
+              '<td>' + escapeHtml(e.attacker_name || 'Unknown') + '</td>' +
+              '<td><code>' + escapeHtml(e.ip_address || '') + '</code></td>' +
+              '<td>' + escapeHtml(e.location || 'Unknown') + '</td>' +
+              '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
+              '<td class="event-message">' + escapeHtml(e.message || '') + '</td>' +
+            '</tr>';
+          }).join('');
+
+          document.getElementById('stat-total').textContent = events.length;
+          document.getElementById('stat-fixed').textContent = fixedCount;
+          document.getElementById('stat-sqli').textContent = sqliCount;
+          document.getElementById('stat-xss').textContent = xssCount;
+        }
+      } catch (err) {
+        loading.style.display = 'none';
+        errorEl.style.display = 'block';
+        errorEl.textContent = err.message || 'Could not load security events.';
+      }
+    })();
+  </script>
+</body>
+</html>

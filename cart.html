@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cart — Purchase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="products.html" class="site-title">Purchase<span>.</span></a>
+      <nav>
+        <a href="home.html">Home</a>
+        <a href="products.html">Products</a>
+        <a href="cart.html" class="cart-link">Cart <span id="cart-count" class="cart-count" style="display: none;">0</span></a>
+        <a href="dashboard.html" id="nav-dashboard" style="display: none; color: var(--accent);">Dashboard</a>
+        <button type="button" class="logout-btn" id="logout">Log out</button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <h1 class="page-title">Your cart</h1>
+    <div class="card">
+      <div id="cart-content"></div>
+      <div id="cart-summary" class="cart-summary" style="display: none;">
+        <div class="total">Total: <span id="cart-total">$0.00</span></div>
+        <a href="checkout.html" class="btn btn-primary mt-1" style="display: inline-block; width: auto;">Proceed to checkout</a>
+      </div>
+    </div>
+  </main>
+  <script src="js/app.js"></script>
+  <script>
+    (function() {
+      initProtectedPage();
+      document.getElementById('logout').addEventListener('click', function() {
+        clearAuth();
+        setCart([]);
+        window.location.href = 'index.html';
+      });
+      (async function() {
+        try {
+          const me = await apiRequest('/api/me');
+          if (me.user && me.user.is_owner) document.getElementById('nav-dashboard').style.display = 'inline';
+        } catch (e) {}
+      })();
+
+      function renderCart() {
+        const cart = getCart();
+        const content = document.getElementById('cart-content');
+        const summary = document.getElementById('cart-summary');
+
+        if (!cart.length) {
+          content.innerHTML = '<div class="cart-empty">Your cart is empty. <a href="products.html">Browse products</a></div>';
+          summary.style.display = 'none';
+          return;
+        }
+
+        content.innerHTML = cart.map(function(item) {
+          const subtotal = item.price * (item.quantity || 1);
+          return '<div class="cart-item" data-id="' + escapeHtml(item.id) + '">' +
+            '<img src="' + escapeHtml(item.image || '') + '" alt="' + escapeHtml(item.name || '') + '">' +
+            '<div class="details">' +
+              '<div class="name">' + escapeHtml(item.name || '') + '</div>' +
+              '<div class="meta">' + formatPrice(item.price) + ' each</div>' +
+              '<input type="number" class="qty" min="1" value="' + (item.quantity || 1) + '" data-id="' + item.id + '">' +
+            '</div>' +
+            '<div class="row-total">' + formatPrice(subtotal) + '</div>' +
+            '<button type="button" class="remove" data-id="' + item.id + '" aria-label="Remove">×</button>' +
+          '</div>';
+        }).join('');
+
+        document.getElementById('cart-total').textContent = formatPrice(getCartTotal());
+        summary.style.display = 'block';
+
+        content.querySelectorAll('.remove').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            removeFromCart(btn.getAttribute('data-id'));
+            renderCart();
+          });
+        });
+        content.querySelectorAll('.qty').forEach(function(input) {
+          input.addEventListener('change', function() {
+            const q = parseInt(input.value, 10) || 1;
+            setCartItemQuantity(input.getAttribute('data-id'), q);
+            renderCart();
+          });
+        });
+      }
+
+      renderCart();
+    })();
+  </script>
+</body>
+</html>
